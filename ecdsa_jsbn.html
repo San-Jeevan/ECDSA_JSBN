@@ -1,0 +1,174 @@
+<!--ECDSA implementation using Tom Wus library for biginteger and elliptic curve cryptography
+sanjevan@outlook.com
+Jeevan Sivagnanasuntharam
+TODO: "Shamirs trick" for easier scalar point addition
+TODO: truncate the sha256 hash to 128 bits
+TODO: sha256 hashing of long texts or files. 
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>ECDSA implementation with JSBN</title>
+
+<script language="JavaScript" type="text/javascript" src="jsbn/jsbn.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/jsbn2.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/prng4.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rng.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/ec.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/sec.js"></script>
+<script language="JavaScript" type="text/javascript" src="sha256/sha256.js"></script>
+<script language="JavaScript" type="text/javascript" src="crypto-js/crypto.js"></script>
+
+
+
+<script language="JavaScript">
+var c = getSECCurveByName("secp160r1");
+var p = c.getN();
+var prng = new SecureRandom();
+var public_point;
+
+
+function calculate_sha256() {
+	document.getElementById("hash").value = sha256_digest(document.getElementById("hashmsg").value);
+	}
+
+function generate_k () {
+	document.getElementById("k").value = new BigInteger(1024, prng).mod(p).toString();
+	}		
+	
+function generate_privkey () {
+	document.getElementById("privkey").value = new BigInteger(1024, prng).mod(p).toString();
+}
+
+function calculate_pubkey () {
+	
+	  var d = new BigInteger(document.getElementById("privkey").value); //private key, should be kept secret.
+      var G = c.getG(); //our ec point
+      public_point = G.multiply(d); //public point also known as public key
+
+	document.getElementById("pubkey").value = public_point.getX().x.toString()+ "," + public_point.getY().x.toString();
+}
+
+
+function calc_sig () {
+	  var d = new BigInteger(document.getElementById("privkey").value); //privkey  hemmelig
+      var e = new BigInteger(document.getElementById("hashmsg").value); //hash
+      var k = new BigInteger(document.getElementById("k").value); //random k, which is used in k*G
+      var G = c.getG(); //punkt G
+      var Q = G.multiply(k); //public key/point
+      var r = Q.getX().toBigInteger().mod(p); //first part of the signature
+      var s = k.modInverse(p).multiply(e.add(d.multiply(r))).mod(p); //second part
+	  document.getElementById("r").value = r.toString();
+	  document.getElementById("s").value = s.toString();
+	}
+
+
+
+	
+	function verify_signature () {
+      var c = getSECCurveByName("secp160r1");
+      var r = new BigInteger(document.getElementById("r").value);
+      var s = new BigInteger(document.getElementById("s").value);      
+      var e = new BigInteger(document.getElementById("hashmsg").value);   //hash
+      var k = new BigInteger(document.getElementById("privkey").value); //privkey, this is for debugging purposes. in this case 
+      var pubp_x = public_point.getX().toBigInteger();
+      var pubp_y = public_point.getY().toBigInteger();
+      var G = c.getG(); //punkt G
+      var p2 = Crypto.util.hexToBytes("04" +pubp_x.toString(16) + pubp_y.toString(16));
+      var Q = ECPointFp.decodeFrom(c.getCurve(), p2); //public key/point
+      var c = s.modInverse(p);
+      var u1 = e.multiply(c).mod(p);
+      var u2 = r.multiply(c).mod(p);
+      var point = G.multiply(u1).add(Q.multiply(u2));
+      var v = point.getX().toBigInteger().mod(p);
+	document.getElementById("verify_x1").value = point.getX().toBigInteger().toString();
+	document.getElementById("verify_y1").value = point.getY().toBigInteger().toString();
+      document.getElementById("verify_final").value = v.equals(r);
+
+		}
+
+
+
+		function verify_signature_bkup () {
+      var c = getSECCurveByName("secp160r1");
+      var r = new BigInteger(document.getElementById("r").value);
+      var s = new BigInteger(document.getElementById("s").value);      
+      var e = new BigInteger(document.getElementById("hashmsg").value);   //hash
+      var k = new BigInteger(document.getElementById("privkey").value); //privkey, this is for debugging purposes. in this case 
+      var G = c.getG(); //punkt G
+      var Q = G.multiply(k); //public key/point
+      var c = s.modInverse(p);
+      var u1 = e.multiply(c).mod(p);
+      var u2 = r.multiply(c).mod(p);
+      var point = G.multiply(u1).add(Q.multiply(u2));
+      var v = point.getX().toBigInteger().mod(p);
+	document.getElementById("verify_x1").value = point.getX().toBigInteger().toString();
+	document.getElementById("verify_y1").value = point.getY().toBigInteger().toString();
+      document.getElementById("verify_final").value = v.equals(r);
+		}
+		
+			
+
+</script>
+
+
+
+</head>
+
+<body>
+<h1>Elliptic Curve DSA (message signing)</h1>
+<p>Alice: 
+    <input name="genprivkey" type="button" id="genprivkey" onClick="generate_privkey ();" value="generate privkey">
+<input name="privkey" type="text" id="privkey" value="43297979088638867083092258469060923321633473369052225876615381827961918290372" size=100>
+  </p>
+  <p>Alice: 
+    <input name="calcpubkey" type="button" id="calcpubkey" onClick="calculate_pubkey ();" value="calculate pubkey">
+    <input name="pubkey" type="text" size=100 id="pubkey">
+  (Point multiplication privkey*G)</p>
+  <p>&nbsp;</p>
+  <p>message to be signed: 
+    <input name="hashmsg" type="text" value="BOBS MELDING" size=100 id="hashmsg">
+  </p>
+  <p>
+    <input name="genhash" type="button" id="genhash" onClick="calculate_sha256();" value="generate sha256 hash">
+    <input name="hash" type="text" value="a9714d76c458ef79350b5e0d21f7818a6146d41521b8d4240c935c4b2fcebc5b" size=100 id="hash">
+    <br>
+  </p>
+  <td>&nbsp;</td>
+<td><p>
+    <input name="genk" type="button" id="genk" onClick="generate_k ();" value="generate k">
+    <input name="k" type="text" value="24602073081184508423616960896669674052722858887149577720946111238467423446197" size=100 id="k">
+   </p>
+  <p>
+    <input name="calcr" type="button" id="calcr" onClick="calc_sig ();" value="calculate signature">
+  </p>
+  <p><strong>signature (r,s)</strong><br />
+    r:
+<input name="r" type="text" value="" size=100 id="r">
+  (Point multiplication k*G)</p></td>
+<td>s:
+    
+    <input name="s" type="text" value="" size=100 id="s"> 
+(<strong class="color">Inversion operation</strong>)</td><br>
+<br>
+<tr>
+  <td><p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <h1>Signature verification (message, signature and public point needed)</h1>
+    <p>x1: 
+      <input name="verify_x1" type="text" value="" size=100 id="verify_x1">
+    </p>
+    <p>y1: 
+      <input name="verify_y1" type="text" value="" size=100 id="verify_y1">
+    </p>
+    <p>is r = x1 mod n ? 
+      <input name="verify_final" type="text" value="" size=10 id="verify_final">
+    </p>
+    <p>
+      <input name="verify_sign_btn" type="button" id="verify_sign_btn" onClick="verify_signature();" value="verify signature">
+    </p>
+
+</body>
+</html>
