@@ -1,8 +1,6 @@
 ECDSA_JSBN
 ==========
 
-DEMO:
-http://htmlpreview.github.io/?https://github.com/San-Jeevan/ECDSA_JSBN/blob/master/ecdsa_jsbn.html
 
 ECDSA implementation with JSBN library
 
